@@ -13,10 +13,9 @@ def start():
     return {
         'color': 'cyan',
         'head_url': 'https://1.bp.blogspot.com/-yXQASSUQlXo/VyNcD6hUryI/AAAAAAABFkg/btYyPTjg2SIUkDz2KsgK65KAtngR9iedgCLcB/s1600/greska.jpg',
-        'name': 'Big Dick',
+        'name': 'Big D Nick',
         'head_type': 'tongue',
         'tail_type': 'curled',
-        'secondary_color': 'gold'
     }
 
 def FindTail(a, walls, checked, tail):
