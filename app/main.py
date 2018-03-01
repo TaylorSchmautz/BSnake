@@ -1,74 +1,121 @@
 import bottle
 import os
 import random
+import json
+import numpy as np
 
-
-@bottle.route('/static/path:path')
+@bottle.route('/static/<path:path>')
 def static(path):
     return bottle.static_file(path, root='static/')
 
-
 @bottle.post('/start')
 def start():
-    data = bottle.request.json
-    game_id = data['game_id']
-    board_width = data['width']
-    board_height = data['height']
-    
-    #head_url = '%s://%s/gears.png' % (
-    #    bottle.request.urlparts.scheme,
-    #    bottle.request.urlparts.netloc
-    # )
-        
-    # TODO: Do things with data
-
     return {
-        'color': 'gold',
-        'taunt': '{} ({}x{})'.format(game_id, board_width, board_height),
+        'color': 'cyan',
+        'head_url': 'https://1.bp.blogspot.com/-yXQASSUQlXo/VyNcD6hUryI/AAAAAAABFkg/btYyPTjg2SIUkDz2KsgK65KAtngR9iedgCLcB/s1600/greska.jpg',
+        'name': 'Big Dick',
         'head_type': 'tongue',
-        'tail_type': 'fat-rattle',
-        'name': 'GodKing'
+        'tail_type': 'curled',
+        'secondary_color': 'gold'
     }
+
+def FindTail(a, walls, checked, tail):
+    
+    if a == tail:
+        return True
+    if a in walls:
+        return False
+    if a in checked:
+        return False
+    checked.extend([a])
+
+    tailX = tail[0] - a[0]
+    tailY = tail[1] - a[1]
+    headU = [0, -1]
+    headD = [0, 1]
+    headL = [-1, 0]
+    headR = [1, 0]
+
+    if abs(tailX) >= abs(tailY):
+        if tailX > 0:
+            first = headR
+            if tailY >= 0:
+                second = headD
+                third = headU
+                last = headL
+            else:
+                second = headU
+                third = headD
+                last = headL
+        else:
+            first = headL
+            if tailY >= 0:
+                second = headD
+                third = headU
+                last = headR
+            else:
+                second = headU
+                third = headD
+                last = headR
+    else:
+        if tailY > 0:
+            first = headD
+            if tailX >= 0:
+                second = headR
+                third = headL
+                last = headU
+            else:
+                second = headL
+                third = headR
+                last = headU
+        else:
+            first = headU
+            if tailX >= 0:
+                second = headR
+                third = headL
+                last = headD
+            else:
+                second = headL
+                third = headR
+                last = headD
+
+    if (FindTail([a[0] + first[0], a[1] + first[1]], walls, checked, tail)) == True:
+        return True
+    if (FindTail([a[0] + second[0], a[1] + second[1]], walls, checked, tail)) == True:
+        return True
+    if (FindTail([a[0] + third[0], a[1] + third[1]], walls, checked, tail)) == True:
+        return True
+    if (FindTail([a[0] + last[0], a[1] + last[1]], walls, checked, tail)) == True:
+        return True
+    return False
+
 
 
 @bottle.post('/move')
 def move():
-    
-    snakes = bottle.request.json[u'snakes']
     data = bottle.request.json
-    myID = data[u'you']
-    mysnake = [0]
+    snakes = bottle.request.json[u'snakes']
+    height = data['height'] - 1
+    width = data['width'] - 1
     
-    for snake in snakes:
-        if snake[u'id'] == myID:
-            mysnake = snake
-
-    # TODO: Do things with data
-    directions = ['up', 'down', 'left', 'right']
-
-    size = len(mysnake[u'coords'])
-    head = mysnake[u'coords'] [0]
-    neck = mysnake[u'coords'] [1]
-    tail = mysnake[u'coords'] [size - 1]
-    direction = [head[0] - neck[0], head[1] - neck[1]]
-
-    headU = [head[0],head[1]-1]
-    headL = [head[0]-1,head[1]]
-    headD = [head[0],head[1]+1]
-    headR = [head[0]+1,head[1]]
-
+    player_body = data['you']['body']['data']
+    my_size = len(player_body)
+    
+    cutoff = 70
+    boardsize = (height+1)*(width+1)
+    invperctosafe = 20
+    walls = []                                                  #CREATING WALLS ARRAY
+    
     h = 0
     w = 0
     h1 = 0
     w1 = 0
-
-    walls = []                                       #CREATING WALLS ARRAY
-
+    
     while (h < data['height']):
         a = [[-1, h]]
         walls.extend(a)
         h = h + 1
-
+    
     while (w < data['width']):
         a = [[w, -1]]
         walls.extend(a)
@@ -78,261 +125,326 @@ def move():
         a = [[data['width'], h1]]
         walls.extend(a)
         h1 = h1 + 1
-
+    
     while (w1 < data['width']):
         a = [[w1, data['height']]]
         walls.extend(a)
         w1 = w1 + 1
 
-    for snake in snakes:
-        bodies = snake[u'coords']
-        snakenotail = len(snake[u'coords']) - 1
-        tailcoord = snake[u'coords'] [snakenotail]
-        bodies.remove(tailcoord)
-        walls.extend(bodies)
+    playerLocation = data['you']['body']['data']
+    for i in range(len(playerLocation)-1):
+        a = [[playerLocation[i]['x'], playerLocation[i]['y']]]
+        walls.extend(a)
 
-    map = []
 
-    s = 0
-    z = 0
-        
-    while (s < data['width']):
-        z = 0
-        while (z < data['height']):
-            place = [s, z]
-            if place not in walls:
-                map.append(place)
-            z = z + 1
-        s = s + 1
+    enemiesLocation = data['snakes']['data']
+    for i in range(len(enemiesLocation)):
+        snake = data['snakes']['data'][i]['body']['data']
+        for j in range(len(snake)-1):
+            a = [[snake[j]['x'], snake[j]['y']]]
+            walls.extend(a)
 
-#print map
+    tail = [playerLocation[len(playerLocation)-1]['x'], playerLocation[len(playerLocation)-1]['y']]
+    head = [data['you']['body']['data'][0]['x'], data['you']['body']['data'][0]['y']]
 
-    if mysnake['health_points'] >= 70:                      #SAFE PATTERN CHASING TAIL
-        
-        if data['turn'] == 0:                               #START
-            if headD in walls:
-                return {
-                    'move': 'up'
-            }
+    if data['turn'] == 0:
+        if [head[0], head[1] + 1] in walls:
             return {
-                'move': 'down'
+                'move': 'up'
         }
+        return {
+            'move': 'down'
+    }
 
-        tailX = tail [0] - head [0]
-        tailY = tail [1] - head [1]
+    if data['turn'] == 1:
+        if [head[0] -1, head[1]] in walls:
+            return {
+                'move': 'right'
+        }
+        return {
+            'move': 'left'
+    }
 
-        if abs(tailX) <= abs(tailY):
-            if tailY < 0:                                   #UP
-                if headU in walls:
-                    if tailX > 0:
-                        if headR in walls:
-                            if headD in walls:
-                                return {
-                                    'move': 'left'
-                            }
-                            return {
-                                'move': 'down'
-                        }
-                        return {
-                            'move': 'right'
-                    }
-                    else:
-                        if headL in walls:
-                            if headD in walls:
-                                return {
-                                    'move': 'right'
-                            }
-                            return {
-                                'move': 'down'
-                        }
-                        return {
-                            'move': 'left'
-                    }
+    if data['you']['health'] >= cutoff:
+        tailX = tail[0] - head[0]
+        tailY = tail[1] - head[1]
+        checked = []
+
+        headU = [0, -1]
+        headD = [0, 1]
+        headL = [-1, 0]
+        headR = [1, 0]
+
+        if abs(tailX) >= abs(tailY):
+            if tailX > 0:
+                first = headR
+                if tailY >= 0:
+                    second = headD
+                    third = headU
+                    last = headL
+                else:
+                    second = headU
+                    third = headD
+                    last = headL
+            else:
+                first = headL
+                if tailY >= 0:
+                    second = headD
+                    third = headU
+                    last = headR
+                else:
+                    second = headU
+                    third = headD
+                    last = headR
+        else:
+            if tailY > 0:
+                first = headD
+                if tailX >= 0:
+                    second = headR
+                    third = headL
+                    last = headU
+                else:
+                    second = headL
+                    third = headR
+                    last = headU
+            else:
+                first = headU
+                if tailX >= 0:
+                    second = headR
+                    third = headL
+                    last = headD
+                else:
+                    second = headL
+                    third = headR
+                    last = headD
+
+        if FindTail([head[0] + first[0], head[1] + first[1]], walls, checked, tail) == True:
+            if first == headU:
                 return {
                     'move': 'up'
             }
-            
-            else:                                           #DOWN
-                if headD in walls:
-                    if tailX > 0:
-                        if headR in walls:
-                            if headU in walls:
-                                return {
-                                    'move': 'left'
-                            }
-                            return {
-                                'move': 'up'
-                        }
-                        return {
-                            'move': 'right'
-                    }
-                    else:
-                        if headL in walls:
-                            if headU in walls:
-                                return {
-                                    'move': 'right'
-                            }
-                            return {
-                                'move': 'up'
-                        }
-                        return {
-                            'move': 'left'
-                }
+            if first == headD:
                 return {
                     'move': 'down'
             }
-        else:
-            if tailX > 0:                                   #RIGHT
-                if headR in walls:
-                    if tailY > 0:
-                        if headD in walls:
-                            if headL in walls:
-                                return {
-                                    'move': 'up'
-                            }
-                            return {
-                                'move': 'left'
-                        }
-                        return {
-                            'move': 'down'
-                    }
-                    else:
-                        if headU in walls:
-                            if headL in walls:
-                                return {
-                                    'move': 'down'
-                            }
-                            return {
-                                'move': 'left'
-                        }
-                        return {
-                            'move': 'up'
-                }
-                return {
-                    'move': 'right'
-            }
-            
-            else:                                           #LEFT
-                if headL in walls:
-                    if tailY > 0:
-                        if headD in walls:
-                            if headR in walls:
-                                return {
-                                    'move': 'up'
-                            }
-                            return {
-                                'move': 'right'
-                        }
-                        return {
-                            'move': 'down'
-                    }
-                    else:
-                        if headU in walls:
-                            if headR in walls:
-                                return {
-                                    'move': 'down'
-                            }
-                            return {
-                                'move': 'right'
-                        }
-                        return {
-                            'move': 'up'
-                }
+            if first == headL:
                 return {
                     'move': 'left'
             }
-
-    else:                                                   #FOOD SEARCH PATTERN
-        i = 0
-        Dist = [0] * len(data['food'])
-        j = 0
-        
-        while (i < len(data['food'])):
-            Dist[i] = abs(data['food'][i][0]-head[0]) + abs(data['food'][i][1]-head[1])
-            i = i + 1
-
-        cFDist = min(Dist)
-        cF = -5
-        
-        while (j < len(data['food'])):
-            if Dist[j] == cFDist:
-                cF = j
-            j = j + 1
-
-        foodX = data['food'][cF][0] - head[0]
-        foodY = data['food'][cF][1] - head[1]
-
-        if abs(foodX) > 0:
-            if foodX > 0:                                   #FOOD RIGHT
-                if headR in walls:
-                    if headD in walls:
-                        if headL in walls:
-                            return {
-                                'move': 'up'
-                        }
-                        return {
-                            'move': 'left'
-                    }
-                    return {
-                        'move': 'down'
-                }
+            if first == headR:
                 return {
                     'move': 'right'
             }
 
-            else:                                           #FOOD LEFT
-                if headL in walls:
-                    if headU in walls:
-                        if headR in walls:
-                            return {
-                                'move': 'down'
-                        }
-                        return {
-                            'move': 'right'
-                    }
+        if FindTail([head[0] + second[0], head[1] + second[1]], walls, checked, tail) == True:
+            if second == headU:
+                return {
+                    'move': 'up'
+            }
+            if second == headD:
+                return {
+                    'move': 'down'
+            }
+            if second == headL:
+                return {
+                    'move': 'left'
+            }
+            if second == headR:
+                return {
+                    'move': 'right'
+            }
+
+        if FindTail([head[0] + third[0], head[1] + third[1]], walls, checked, tail) == True:
+            if third == headU:
+                return {
+                    'move': 'up'
+            }
+            if third == headD:
+                return {
+                    'move': 'down'
+            }
+            if third == headL:
+                return {
+                    'move': 'left'
+            }
+            if third == headR:
+                return {
+                    'move': 'right'
+            }
+
+        if FindTail([head[0] + last[0], head[1] + last[1]], walls, checked, tail) == True:
+            if last == headU:
+                return {
+                    'move': 'up'
+            }
+            if last == headD:
+                return {
+                    'move': 'down'
+            }
+            if last == headL:
+                return {
+                    'move': 'left'
+            }
+            if last == headR:
+                return {
+                    'move': 'right'
+            }
+
+    if data['you']['health'] < cutoff:
+        i = 0
+        j = 0
+        a = []
+        checked = []
+        
+        while (i < len(data['food']['data'])):
+            b = [[abs(data['food']['data'][i]['x'] - head[0]) + abs(data['food']['data'][i]['y'] - head[1]) , i]]
+            a.extend(b)
+            i = i + 1
+        
+        while (j < len(data['food']['data'])):
+            minval = min(a)
+            a.remove(minval)
+            foodnum = minval[1]
+            FoodX = data['food']['data'][foodnum]['x']
+            FoodY = data['food']['data'][foodnum]['y']
+            
+            goalX = FoodX - head[0]
+            goalY = FoodY - head[1]
+            checked = []
+
+            headU = [0, -1]
+            headD = [0, 1]
+            headL = [-1, 0]
+            headR = [1, 0]
+
+            if abs(goalX) >= abs(goalY):
+                if goalX > 0:
+                    first = headR
+                    if goalY >= 0:
+                        second = headD
+                        third = headU
+                        last = headL
+                    else:
+                        second = headU
+                        third = headD
+                        last = headL
+                else:
+                    first = headL
+                    if goalY >= 0:
+                        second = headD
+                        third = headU
+                        last = headR
+                    else:
+                        second = headU
+                        third = headD
+                        last = headR
+            else:
+                if goalY > 0:
+                    first = headD
+                    if goalX >= 0:
+                        second = headR
+                        third = headL
+                        last = headU
+                    else:
+                        second = headL
+                        third = headR
+                        last = headU
+                else:
+                    first = headU
+                    if goalX >= 0:
+                        second = headR
+                        third = headL
+                        last = headD
+                    else:
+                        second = headL
+                        third = headR
+                        last = headD
+
+            if FindTail([head[0] + first[0], head[1] + first[1]], walls, checked, tail) == True:
+                if first == headU:
                     return {
                         'move': 'up'
                 }
-                return {
-                    'move': 'left'
-            }
-                
-        else:
-            if foodY > 0:                                   #FOOD DOWN
-                if headD in walls:
-                    if headL in walls:
-                        if headU in walls:
-                            return {
-                                'move': 'right'
-                        }
-                        return {
-                            'move': 'up'
-                    }
+                if first == headD:
+                    return {
+                        'move': 'down'
+                }
+                if first == headL:
                     return {
                         'move': 'left'
                 }
-                return {
-                    'move': 'down'
-            }
-            
-            else:                                           #FOOD UP
-                if headU in walls:
-                    if headR in walls:
-                        if headD in walls:
-                            return {
-                                'move': 'left'
-                        }
-                        return {
-                            'move': 'down'
-                    }
+                if first == headR:
                     return {
                         'move': 'right'
                 }
-                return {
-                    'move': 'up'
-            }
+
+            if FindTail([head[0] + second[0], head[1] + second[1]], walls, checked, tail) == True:
+                if second == headU:
+                    return {
+                        'move': 'up'
+                }
+                if second == headD:
+                    return {
+                        'move': 'down'
+                }
+                if second == headL:
+                    return {
+                        'move': 'left'
+                }
+                if second == headR:
+                    return {
+                        'move': 'right'
+                }
+
+            if FindTail([head[0] + third[0], head[1] + third[1]], walls, checked, tail) == True:
+                if third == headU:
+                    return {
+                        'move': 'up'
+                }
+                if third == headD:
+                    return {
+                        'move': 'down'
+                }
+                if third == headL:
+                    return {
+                        'move': 'left'
+                }
+                if third == headR:
+                    return {
+                        'move': 'right'
+                }
+
+            if FindTail([head[0] + last[0], head[1] + last[1]], walls, checked, tail) == True:
+                if last == headU:
+                    return {
+                        'move': 'up'
+                }
+                if last == headD:
+                    return {
+                        'move': 'down'
+                }
+                if last == headL:
+                    return {
+                        'move': 'left'
+                }
+                if last == headR:
+                    return {
+                        'move': 'right'
+                }
+
+            j = j + 1
+
+    return {
+        'move': 'left'
+    }
 
 # Expose WSGI app (so gunicorn can find it)
 application = bottle.default_app()
+
 if __name__ == '__main__':
-    bottle.run(application, host=os.getenv('IP', '192.168.0.11'), port=os.getenv('PORT', '8080'))
+    bottle.run(
+        application,
+        host=os.getenv('IP', '192.168.0.11'),
+        port=os.getenv('PORT', '8080'),
+        debug = True)
+
